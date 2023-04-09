@@ -12,6 +12,12 @@ pub enum KvsErr {
 
     #[fail(display = "{}", _0)]
     Serde(#[cause] serde_json::Error),
+    /// Key or value is invalid UTF-8 sequence
+    #[fail(display = "UTF-8 error: {}", _0)]
+    Utf8(#[cause] FromUtf8Error),
+    /// Sled error
+    #[fail(display = "sled error: {}", _0)]
+    Sled(#[cause] sled::Error),
 }
 
 pub type Result<T> = std::result::Result<T, KvsErr>;
@@ -27,12 +33,13 @@ impl From<serde_json::Error> for KvsErr {
     }
 }
 impl From<sled::Error> for KvsErr {
-    fn from(value: sled::Error) -> Self {
-        todo!()
+    fn from(err: sled::Error) -> Self {
+        KvsErr::Sled(err)
     }
 }
 impl From<FromUtf8Error> for KvsErr {
-    fn from(value: FromUtf8Error) -> Self {
-        todo!()
+    fn from(err: FromUtf8Error) -> Self {
+        KvsErr::Utf8(err)
     }
 }
+

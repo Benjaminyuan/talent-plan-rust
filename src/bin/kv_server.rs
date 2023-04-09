@@ -9,6 +9,7 @@ use std::fs;
 use std::net::SocketAddr;
 use std::process::exit;
 use structopt::StructOpt;
+
 const DEFAULT_LISTENING_ADDRESS: &str = "127.0.0.1:4000";
 const DEFAULT_ENGINE: Engine = Engine::kvs;
 
@@ -69,11 +70,11 @@ fn run(opt: Opt) -> Result<()> {
     match engine {
         Engine::kvs => run_with_engine(KvStore::open(current_dir()?)?, opt.addr),
         Engine::sled => run_with_engine(SledKvsEngine::new(sled::open(current_dir()?)?), opt.addr),
-    };
-    Ok(())
+    }
 }
 fn run_with_engine<E: KvEngine>(engine: E, addr: SocketAddr) -> Result<()> {
-    todo!()
+    let server = KvServer::new(engine);
+    server.run(addr)
 }
 
 fn current_engine() -> Result<Option<Engine>> {
