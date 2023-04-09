@@ -9,6 +9,8 @@ use std::io;
 use std::io::*;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+
+use super::KvEngine;
 pub struct KvStore {
     path: PathBuf,
     writer: BufWriterWithPos<File>,                 // 当前写入文件
@@ -114,73 +116,15 @@ impl KvStore {
         return Ok(store);
     }
 
-    pub fn set(&mut self, key: String, val: String) -> Result<()> {
-        // construct data
-        let cmd = OpCmd::Set { key, value: val };
-        let pos = self.writer.pos;
-        // write to file
-        serde_json::to_writer(&mut self.writer, &cmd)?;
-        self.writer.flush()?;
-        // create index for get
-        if let OpCmd::Set { key, .. } = cmd {
-            if let Some(old_cmd) = self
-                .index
-                .insert(key, (self.version, pos..self.writer.pos).into())
-            {
-                // update uncompacted data size
-                self.add_uncompacted(old_cmd.len)?;
-            }
-        }
-
-        Ok(())
-    }
     fn add_uncompacted(&mut self, new_uncompacted: u64) -> Result<()> {
         self.uncompacted += new_uncompacted;
         if self.uncompacted > COMPACTION_THRESHOLD {
             self.compact()?
         }
+
         return Ok(());
     }
-    pub fn get(&mut self, key: String) -> Result<Option<String>> {
-        // find last record path from index
-        if let Some(cmd) = self.index.get(&key) {
-            // println!("get key {} pos {:?}", key, cmd);
-            if let Some(reader) = self.readers.get_mut(&cmd.version) {
-                reader.seek(SeekFrom::Start(cmd.pos))?;
-                let cmd: OpCmd =
-                    serde_json::from_reader(reader.take(cmd.len)).expect("fail to serialize");
-                match cmd {
-                    OpCmd::Set { key: _, value } => {
-                        // println!("get key {} , value : {:?}", key, value);
-                        return Ok(Some(value));
-                    }
-                    OpCmd::Remove { key: _ } => {
-                        // println!("key {} deleted", key);
-                    }
-                }
-            }
-        }
-        Ok(None)
-    }
     /// Remove a given key.
-    pub fn remove(&mut self, key: String) -> Result<()> {
-        // Check key existence
-        if self.index.contains_key(&key) {
-            let cmd = OpCmd::Remove { key };
-            // serialize record
-            serde_json::to_writer(&mut self.writer, &cmd)?;
-            self.writer.flush()?;
-
-            if let OpCmd::Remove { key } = cmd {
-                if let Some(old_cmd) = self.index.remove(&key) {
-                    self.add_uncompacted(old_cmd.len)?
-                }
-            }
-            Ok(())
-        } else {
-            Err(KvsErr::KeyNotFound)
-        }
-    }
     fn new_log_file(&mut self, version: u64) -> Result<BufWriterWithPos<File>> {
         new_log_file(&self.path, version, &mut self.readers)
     }
@@ -308,6 +252,69 @@ impl From<(u64, Range<u64>)> for CommandPos {
             version,
             pos: range.start,
             len: range.end - range.start,
+        }
+    }
+}
+
+impl KvEngine for KvStore {
+    fn set(&mut self, key: String, value: String) -> Result<()> {
+        // construct data
+        let cmd = OpCmd::Set { key, value: value };
+        let pos = self.writer.pos;
+        // write to file
+        serde_json::to_writer(&mut self.writer, &cmd)?;
+        self.writer.flush()?;
+        // create index for get
+        if let OpCmd::Set { key, .. } = cmd {
+            if let Some(old_cmd) = self
+                .index
+                .insert(key, (self.version, pos..self.writer.pos).into())
+            {
+                // update uncompacted data size
+                self.add_uncompacted(old_cmd.len)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn get(&mut self, key: String) -> Result<Option<String>> {
+        // find last record path from index
+        if let Some(cmd) = self.index.get(&key) {
+            // println!("get key {} pos {:?}", key, cmd);
+            if let Some(reader) = self.readers.get_mut(&cmd.version) {
+                reader.seek(SeekFrom::Start(cmd.pos))?;
+                let cmd: OpCmd =
+                    serde_json::from_reader(reader.take(cmd.len)).expect("fail to serialize");
+                match cmd {
+                    OpCmd::Set { key: _, value } => {
+                        // println!("get key {} , value : {:?}", key, value);
+                        return Ok(Some(value));
+                    }
+                    OpCmd::Remove { key: _ } => {
+                        // println!("key {} deleted", key);
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    fn remove(&mut self, key: String) -> Result<()> {
+        // Check key existence
+        if self.index.contains_key(&key) {
+            let cmd = OpCmd::Remove { key };
+            // serialize record
+            serde_json::to_writer(&mut self.writer, &cmd)?;
+            self.writer.flush()?;
+
+            if let OpCmd::Remove { key } = cmd {
+                if let Some(old_cmd) = self.index.remove(&key) {
+                    self.add_uncompacted(old_cmd.len)?
+                }
+            }
+            Ok(())
+        } else {
+            Err(KvsErr::KeyNotFound)
         }
     }
 }

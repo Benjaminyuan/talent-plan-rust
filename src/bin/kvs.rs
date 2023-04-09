@@ -1,5 +1,5 @@
 use clap::{App, AppSettings, Arg, SubCommand};
-use kvs::{KvStore, KvsErr, Result};
+use kvs::{KvStore, KvsErr, Result, engines::KvEngine};
 
 use std::{env::current_dir, process::exit};
 fn main() -> Result<()> {
