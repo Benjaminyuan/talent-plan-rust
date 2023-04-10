@@ -68,7 +68,7 @@ fn run(opt: Opt) -> Result<()> {
     info!("Listening on {}", opt.addr);
     fs::write(current_dir()?.join("engine"), format!("{}", engine))?;
     match engine {
-        Engine::kvs => run_with_engine(KvStore::open(current_dir()?)?, opt.addr),
+        Engine::kvs => run_with_engine(KvStore::open(current_dir()?.join("/kvs"))?, opt.addr),
         Engine::sled => run_with_engine(SledKvsEngine::new(sled::open(current_dir()?)?), opt.addr),
     }
 }
