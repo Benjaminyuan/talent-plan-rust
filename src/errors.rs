@@ -18,6 +18,9 @@ pub enum KvsErr {
     /// Sled error
     #[fail(display = "sled error: {}", _0)]
     Sled(#[cause] sled::Error),
+
+    #[fail(display = "{}", _0)]
+    StringErr(String),
 }
 
 pub type Result<T> = std::result::Result<T, KvsErr>;
@@ -43,3 +46,8 @@ impl From<FromUtf8Error> for KvsErr {
     }
 }
 
+impl From<String> for KvsErr {
+    fn from(value: String) -> Self {
+        KvsErr::StringErr(value)
+    }
+}

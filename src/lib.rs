@@ -6,4 +6,5 @@ pub use crate::engines::KvStore;
 pub use errors::{KvsErr, Result};
 mod server;
 pub use server::KvServer;
+pub use client::KvClient;
 mod client;
